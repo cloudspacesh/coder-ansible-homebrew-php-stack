@@ -58,8 +58,8 @@ resource "coder_agent" "main" {
   }
 }
 
-data "coder_parameter" "a10_cpu_cores_count" {
-  name         = "a10_cpu_cores_count"
+data "coder_parameter" "a110_cpu_cores_count" {
+  name         = "a110_cpu_cores_count"
   display_name = "CPU Cores Count"
   description  = ""
   default      = 4
@@ -88,8 +88,8 @@ data "coder_parameter" "a10_cpu_cores_count" {
   # }
 }
 
-data "coder_parameter" "a20_memory_size" {
-  name         = "a20_memory_size"
+data "coder_parameter" "a120_memory_size" {
+  name         = "a120_memory_size"
   display_name = "Memory Size"
   description  = ""
   default      = 4096
@@ -118,8 +118,8 @@ data "coder_parameter" "a20_memory_size" {
   # }
 }
 
-data "coder_parameter" "a30_disk_size" {
-  name         = "a30_disk_size"
+data "coder_parameter" "a130_disk_size" {
+  name         = "a130_disk_size"
   display_name = "Disk Size"
   description  = ""
   default      = 24
@@ -148,8 +148,8 @@ data "coder_parameter" "a30_disk_size" {
   # }
 }
 
-data "coder_parameter" "a40_php_formula" {
-  name         = "a40_php_formula"
+data "coder_parameter" "a240_php_formula" {
+  name         = "a240_php_formula"
   display_name = "PHP Version"
   description  = ""
   default      = "php83"
@@ -194,26 +194,30 @@ data "coder_parameter" "a40_php_formula" {
   }
 }
 
-data "coder_parameter" "a70_mysql_formula" {
-  name         = "a70_mysql_formula"
-  display_name = "MySQL Version"
+data "coder_parameter" "a250_composer_formula" {
+  name         = "a250_composer_formula"
+  display_name = "Composer Version"
   description  = ""
-  default      = ""
+  default      = "composer@2.6"
   type         = "string"
-  icon         = "https://cdn.jsdelivr.net/npm/@loganmarchione/homelab-svg-assets@latest/assets/mysql.svg"
+  icon         = "https://cdn.jsdelivr.net/npm/@loganmarchione/homelab-svg-assets@latest/assets/php.svg"
   mutable      = true
   option {
-    name  = "8.0"
-    value = "mysql80"
+    name  = "2.6"
+    value = "composer@2.6"
   }
   option {
-    name  = "None"
-    value = ""
+    name  = "2.2"
+    value = "composer@2.2"
+  }
+  option {
+    name  = "1.10"
+    value = "composer@1.10"
   }
 }
 
-data "coder_parameter" "a60_postgresql_formula" {
-  name         = "a60_postgresql_formula"
+data "coder_parameter" "a260_postgresql_formula" {
+  name         = "a260_postgresql_formula"
   display_name = "PostgreSQL Version"
   description  = ""
   default      = ""
@@ -230,8 +234,26 @@ data "coder_parameter" "a60_postgresql_formula" {
   }
 }
 
-data "coder_parameter" "a40_should_install_code_server" {
-  name         = "a40_should_install_code_server"
+data "coder_parameter" "a270_mysql_formula" {
+  name         = "a270_mysql_formula"
+  display_name = "MySQL Version"
+  description  = ""
+  default      = ""
+  type         = "string"
+  icon         = "https://cdn.jsdelivr.net/npm/@loganmarchione/homelab-svg-assets@latest/assets/mysql.svg"
+  mutable      = true
+  option {
+    name  = "8.0"
+    value = "mysql80"
+  }
+  option {
+    name  = "None"
+    value = ""
+  }
+}
+
+data "coder_parameter" "a540_should_install_code_server" {
+  name         = "a540_should_install_code_server"
   display_name = "Install Code Server"
   description  = "Should Code Server be installed during deploy?"
   default      = 1
@@ -248,8 +270,8 @@ data "coder_parameter" "a40_should_install_code_server" {
   }
 }
 
-data "coder_parameter" "a50_should_install_docker_ce" {
-  name         = "a50_should_install_docker_ce"
+data "coder_parameter" "a550_should_install_docker_ce" {
+  name         = "a550_should_install_docker_ce"
   display_name = "Install Docker CE"
   description  = "Should Docker CE be installed during deploy?"
   default      = 1
@@ -266,12 +288,30 @@ data "coder_parameter" "a50_should_install_docker_ce" {
   }
 }
 
+data "coder_parameter" "a560_mailhog_formula" {
+  name         = "a560_mailhog_formula"
+  display_name = "Install MailHog"
+  description  = "Should MailHog be installed during deploy?"
+  default      = "mailhog"
+  type         = "string"
+  icon         = "https://img.icons8.com/fluency/96/mail--v1.png"
+  mutable      = true
+  option {
+    name  = "Yes"
+    value = "mailhog"
+  }
+  option {
+    name  = "No"
+    value = ""
+  }
+}
+
 
 data "coder_workspace" "me" {
 }
 
 resource "coder_app" "code-server" {
-  count        = data.coder_parameter.a40_should_install_code_server.value
+  count        = data.coder_parameter.a540_should_install_code_server.value
   agent_id     = coder_agent.main.id
   slug         = "code-server"
   display_name = "code-server"
@@ -288,7 +328,7 @@ resource "coder_app" "code-server" {
 }
 
 resource "coder_app" "docker-portainer" {
-  count        = data.coder_parameter.a50_should_install_docker_ce.value
+  count        = data.coder_parameter.a550_should_install_docker_ce.value
   agent_id     = coder_agent.main.id
   slug         = "portainer"
   display_name = "Docker Portainer"
@@ -316,6 +356,23 @@ resource "coder_app" "supervisord" {
 
   healthcheck {
     url       = "http://localhost:9001"
+    interval  = 3
+    threshold = 10
+  }
+}
+
+resource "coder_app" "mailhog" {
+  count        = 1
+  agent_id     = coder_agent.main.id
+  slug         = "mailhog"
+  display_name = "MailHog"
+  url          = "http://localhost:8025"
+  icon         = "https://img.icons8.com/fluency/96/mail--v1.png"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:8025"
     interval  = 3
     threshold = 10
   }
@@ -351,12 +408,15 @@ provider "proxmox" {
 
 locals {
   vm_name           = replace("${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}", " ", "_")
-  cpu_cores_count   = data.coder_parameter.a10_cpu_cores_count.value
-  memory_size       = data.coder_parameter.a20_memory_size.value
-  disk_size         = data.coder_parameter.a30_disk_size.value
-  ansible_tag_php   = data.coder_parameter.a40_php_formula.value
-  ansible_tag_mysql = data.coder_parameter.a70_mysql_formula.value
-  ansible_tag_postgresql = data.coder_parameter.a60_postgresql_formula.value
+  cpu_cores_count   = data.coder_parameter.a110_cpu_cores_count.value
+  memory_size       = data.coder_parameter.a120_memory_size.value
+  disk_size         = data.coder_parameter.a130_disk_size.value
+  ansible_tag_php   = data.coder_parameter.a240_php_formula.value
+  ansible_tag_composer = data.coder_parameter.a250_composer_formula.value
+  ansible_tag_mysql = data.coder_parameter.a270_mysql_formula.value
+  ansible_tag_postgresql = data.coder_parameter.a260_postgresql_formula.value
+  ansible_tag_mailhog = data.coder_parameter.a560_mailhog_formula.value
+  
   system_bootstrap_base_system = <<-EOT
 export DEBIAN_FRONTEND=noninteractive
 
@@ -402,8 +462,8 @@ if [[ -f '/opt/ansibleplaybook.tar' ]]; then
   mkdir -p /opt/playbook
   pv /opt/ansibleplaybook.tar | tar -x -C /opt/playbook/
   if [[ -f /opt/playbook/ansibleplaybook/run.sh ]]; then
-    bash /opt/playbook/ansibleplaybook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_mysql},${local.ansible_tag_postgresql}
-    rm /opt/ansibleplaybook.tar
+    bash /opt/playbook/ansibleplaybook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
+    # rm /opt/ansibleplaybook.tar
   else
     >&2 echo "/opt/playbook/ansibleplaybook/run.sh does not exists"
     exit 1
@@ -444,7 +504,7 @@ systemctl stop coder-agent
 systemctl start coder-agent
 EOT
 
-  app_bootstrap_script_coder_server = (data.coder_parameter.a40_should_install_code_server.value < 1 ? "" : <<-EOT
+  app_bootstrap_script_coder_server = (data.coder_parameter.a540_should_install_code_server.value < 1 ? "" : <<-EOT
 # Installing Coder Server if it is not installed
 which code-server > /dev/null || {
   CODE_SERVER_DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/coder/code-server/releases/latest | jq -r '.assets[].browser_download_url' | grep 'amd64.deb')
@@ -457,7 +517,7 @@ which code-server > /dev/null || {
 EOT
   )
 
-  app_bootstrap_script_docker_ce = (data.coder_parameter.a50_should_install_docker_ce.value < 1 ? "" : <<-EOT
+  app_bootstrap_script_docker_ce = (data.coder_parameter.a550_should_install_docker_ce.value < 1 ? "" : <<-EOT
 # Installing Docker CE with Portainer if it is not installed
 which docker > /dev/null || {
   # Install Docker CE
@@ -689,7 +749,7 @@ resource "null_resource" "start_vm" {
       "pct status $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') | grep -v running && pct start $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') || /bin/true",
       "lxc-wait $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') -s RUNNING",
       
-      # "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansibleplaybook.tar /opt/ansibleplaybook.tar",
+      "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansibleplaybook.tar /opt/ansibleplaybook.tar",
       "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh /bootstrap.sh",
 
       "pct exec $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /bin/bash /bootstrap.sh"

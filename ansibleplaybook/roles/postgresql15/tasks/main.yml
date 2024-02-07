@@ -7,7 +7,7 @@
   with_items:
   - "digitalspacestdio/nextgen-devenv"
 
-- name: "Ensure digitalspace-postgresql15"
+- name: "Ensure postgresql15"
   homebrew:
     name: "digitalspace-postgresql15"
     state: latest

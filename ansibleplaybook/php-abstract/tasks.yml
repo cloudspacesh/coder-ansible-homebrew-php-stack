@@ -5,19 +5,19 @@
   - "digitalspacestdio/common"
   - "digitalspacestdio/php"
 
-- name: "Unlinking all already installed php packages"
-  shell: "brew list --formula | grep php | xargs brew unlink"
-  when: ansible_system == "Darwin"
+# - name: "Unlinking all already installed php packages"
+#   shell: "brew list --formula | grep php | xargs brew unlink"
+#   when: ansible_system == "Darwin"
 
-- name: "Unlinking all already installed php packages"
-  shell: "brew list --formula | grep php | xargs --no-run-if-empty brew unlink"
-  when: ansible_system == "Linux"
+# - name: "Unlinking all already installed php packages"
+#   shell: "brew list --formula | grep php | xargs --no-run-if-empty brew unlink"
+#   when: ansible_system == "Linux"
 
-- shell: "brew list | grep 'php[0-9]\\+' | grep -v {{ php_version }} || /bin/true"
+- shell: "echo $({{ homebrew_prefix }}/bin/brew list | grep 'php[0-9]\\+' | grep -v {{ php_version }} || /bin/true)"
   register: brew_list
 
 - name: "Remove another php versions"
-  shell: "brew uninstall --ignore-dependencies {{ brew_list.stdout }}"
+  shell: "{{ homebrew_prefix }}/bin/brew uninstall --ignore-dependencies {{ brew_list.stdout }}"
   when: brew_list.stdout != ""
 
 - name: "Installing {{ php_version }} dependencies"

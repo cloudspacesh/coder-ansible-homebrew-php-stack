@@ -3,11 +3,11 @@
   homebrew_tap: 
     tap: "{{ item }}"
     state: "present"
-    path: "/home/linuxbrew/.linuxbrew/bin"
+    path: "{{ homebrew_prefix }}/bin"
   with_items:
   - "digitalspacestdio/nextgen-devenv"
 
-- name: "Ensure mysql80"
+- name: "Ensure mailhog"
   homebrew:
-    name: "digitalspace-mysql80"
+    name: "digitalspace-mailhog"
     state: latest
