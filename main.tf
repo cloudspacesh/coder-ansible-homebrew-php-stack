@@ -420,11 +420,11 @@ locals {
   system_bootstrap_base_system = <<-EOT
 export DEBIAN_FRONTEND=noninteractive
 
-if ! which sudo git curl wget jq htop nload vim pv; then
+if ! which sudo git curl wget jq htop nload vim pv > /dev/null; then
   apt update -qq && apt install -yqqq sudo git-core curl wget jq htop nload locales vim pv
 fi
 
-if grep '# en_US.UTF-8 UTF-8' /etc/locale.gen; then
+if grep '# en_US.UTF-8 UTF-8' /etc/locale.gen > /dev/null; then
   dpkg -l | grep 'ii\s\+locales' > /dev/null || apt update -qq && apt install -yqqq locales
   sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
   dpkg-reconfigure locales  > /dev/null 2>&1
@@ -456,20 +456,20 @@ getent passwd '${lower(data.coder_workspace.me.owner)}' > /dev/null || {
   chown $(id -u $WS_USER):$(id -g $WS_USER) '/home/linuxbrew'
 }
 
-#set -x
-if [[ -f '/opt/ansibleplaybook.tar' ]]; then
+set -x
+if [[ -f '/opt/ansibleplaybook.tgz' ]]; then
   rm -rf /opt/playbook
   mkdir -p /opt/playbook
-  pv /opt/ansibleplaybook.tar | tar -x -C /opt/playbook/
-  if [[ -f /opt/playbook/ansibleplaybook/run.sh ]]; then
-    bash /opt/playbook/ansibleplaybook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
-    # rm /opt/ansibleplaybook.tar
+  tar -zxf /opt/ansibleplaybook.tgz --strip-components=1 -C /opt/playbook/
+  if [[ -f /opt/playbook/run.sh ]]; then
+    bash /opt/playbook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
+    # rm /opt/ansibleplaybook.tgz
   else
-    >&2 echo "/opt/playbook/ansibleplaybook/run.sh does not exists"
+    >&2 echo "/opt/playbook/run.sh does not exists"
     exit 1
   fi
 fi
-#set +x
+set +x
 EOT
 
   system_bootstrap_coder_agent = <<-EOT
@@ -652,6 +652,23 @@ EOT
   }
 }
 
+resource "null_resource" "ansible_repository" {
+  count = data.coder_workspace.me.transition == "start" ? 1 : 0
+
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = var.proxmox_ssh_user
+      host        = var.proxmox_ssh_host
+      private_key = file(var.proxmox_ssh_key_path)
+    }
+    inline = [
+      "mkdir -p /opt/ansible_playbooks/${local.vm_name}",
+      "curl -L -s -o /opt/ansible_playbooks/${local.vm_name}/ansibleplaybook.tgz https://github.com/cloudspacesh/coder-ansible-php-stack/archive/refs/heads/master.tar.gz",
+    ]
+  }
+}
+
 # Provision the Proxmox LXC
 resource "proxmox_lxc" "lxc" {
   
@@ -668,7 +685,8 @@ resource "proxmox_lxc" "lxc" {
   EOT
 
   depends_on = [
-    null_resource.lxc_bootstrap_script
+    null_resource.ansible_repository,
+    null_resource.lxc_bootstrap_script,
   ]
 
   # Preserve the network config.
@@ -721,7 +739,7 @@ resource "proxmox_lxc" "lxc" {
       "pct status $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') | grep -v running && pct start $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') || /bin/true",
       "lxc-wait $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') -s RUNNING",
 
-      "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansibleplaybook.tar /opt/ansibleplaybook.tar",
+      "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansible_playbooks/${local.vm_name}/ansibleplaybook.tgz /opt/ansibleplaybook.tgz",
       "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh /bootstrap.sh",
       
       "pct exec $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /bin/bash /bootstrap.sh"
@@ -749,7 +767,7 @@ resource "null_resource" "start_vm" {
       "pct status $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') | grep -v running && pct start $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') || /bin/true",
       "lxc-wait $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') -s RUNNING",
       
-      "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansibleplaybook.tar /opt/ansibleplaybook.tar",
+      "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansible_playbooks/${local.vm_name}/ansibleplaybook.tgz /opt/ansibleplaybook.tgz",
       "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh /bootstrap.sh",
 
       "pct exec $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /bin/bash /bootstrap.sh"
