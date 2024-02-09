@@ -21,7 +21,7 @@ resource "coder_agent" "main" {
   set -e
   until stat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml > /dev/null 2> /dev/null; do sleep 1; done
   VSCODE_PROXY_DOMAIN=$(echo $VSCODE_PROXY_URI | sed 's/^https\{0,1\}:\/\///')
-  cat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml | grep -v 'password\:auth\:proxy-domain:\|app-name:\|bind-addr:' | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+  cat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml | grep -v 'password\:\|auth\:\|proxy-domain:\|app-name:\|bind-addr:' | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
   echo "auth: none" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
   echo "bind-addr: 127.0.0.1:13337" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
   echo "proxy-domain: '$VSCODE_PROXY_DOMAIN'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
@@ -318,7 +318,7 @@ resource "coder_app" "code-server" {
   display_name = "code-server"
   url          = "http://localhost:13337?folder=/home/coder"
   icon         = "/icon/code.svg"
-  subdomain    = false
+  subdomain    = true
   share        = "owner"
 
   healthcheck {
@@ -463,7 +463,7 @@ if [[ -f '/opt/ansibleplaybook.tgz' ]]; then
   mkdir -p /opt/playbook
   tar -zxf /opt/ansibleplaybook.tgz --strip-components=1 -C /opt/playbook/
   if [[ -f /opt/playbook/run.sh ]]; then
-    bash /opt/playbook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
+    bash /opt/playbook/run.sh --tags=base-system,nginx,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
     # rm /opt/ansibleplaybook.tgz
   else
     >&2 echo "/opt/playbook/run.sh does not exists"
@@ -753,6 +753,7 @@ resource "null_resource" "start_vm" {
   count      = data.coder_workspace.me.transition == "start" ? 1 : 0
 
   depends_on = [
+    coder_agent.main,
     proxmox_lxc.lxc,
     null_resource.lxc_bootstrap_script
   ]
