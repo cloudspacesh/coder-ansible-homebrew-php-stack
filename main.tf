@@ -19,17 +19,19 @@ resource "coder_agent" "main" {
   startup_script = <<EOT
   #!/bin/sh
   set -e
-  until stat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml > /dev/null 2> /dev/null; do sleep 1; done
-  VSCODE_PROXY_DOMAIN=$(echo $VSCODE_PROXY_URI | sed 's/^https\{0,1\}:\/\///')
-  cat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml | grep -v 'password\:\|auth\:\|proxy-domain:\|app-name:\|bind-addr:' | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-  echo "auth: none" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-  echo "bind-addr: 127.0.0.1:13337" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-  echo "proxy-domain: '$VSCODE_PROXY_DOMAIN'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-  echo "app-name: '$CODER_WORKSPACE_NAME'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+  if [ ${data.coder_parameter.a540_should_install_code_server.value} -gt 0 ]; then
+    until stat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml > /dev/null 2> /dev/null; do sleep 1; done
+    VSCODE_PROXY_DOMAIN=$(echo $VSCODE_PROXY_URI | sed 's/^https\{0,1\}:\/\///')
+    cat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml | grep -v 'password\:\|auth\:\|proxy-domain:\|app-name:\|bind-addr:' | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "auth: none" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "bind-addr: 127.0.0.1:13337" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "proxy-domain: '$VSCODE_PROXY_DOMAIN'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "app-name: '$CODER_WORKSPACE_NAME'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
 
-  mv /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml
+    mv /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml
 
-  sudo systemctl restart code-server@${data.coder_workspace.me.owner}
+    sudo systemctl restart code-server@${data.coder_workspace.me.owner}
+  fi
   PROXY_DOMAIN_WWW_DIR=$(echo $VSCODE_PROXY_DOMAIN | sed 's/{{port}}/www/' | awk -F\. '{ for(i=1;i<NF;i++) printf $i"." }' | awk -F\. '{ for(i=NF;i>0;i--) printf $i"/" }')
   mkdir -p $HOME/www/$PROXY_DOMAIN_WWW_DIR
   echo "$CODER_WORKSPACE_NAME works!" > $HOME/www/$PROXY_DOMAIN_WWW_DIR/index.html
@@ -66,7 +68,7 @@ data "coder_parameter" "a110_cpu_cores_count" {
   default      = 4
   type         = "string"
   icon         = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='64' height='64' fill='rgba(255,255,255,1)'%3E%3Cpath d='M6 18H18V6H6V18ZM14 20H10V22H8V20H5C4.44772 20 4 19.5523 4 19V16H2V14H4V10H2V8H4V5C4 4.44772 4.44772 4 5 4H8V2H10V4H14V2H16V4H19C19.5523 4 20 4.44772 20 5V8H22V10H20V14H22V16H20V19C20 19.5523 19.5523 20 19 20H16V22H14V20ZM8 8H16V16H8V8Z'%3E%3C/path%3E%3C/svg%3E"
-  mutable      = true
+  mutable      = false
   # option {
   #   name  = "1 vCpu"
   #   value = 1
@@ -96,7 +98,7 @@ data "coder_parameter" "a120_memory_size" {
   default      = 4096
   type         = "string"
   icon         = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='64' height='64' fill='rgba(255,255,255,1)'%3E%3Cpath d='M3 7H21V17H19V15H17V17H15V15H13V17H11V15H9V17H7V15H5V17H3V7ZM2 5C1.44772 5 1 5.44772 1 6V18C1 18.5523 1.44772 19 2 19H22C22.5523 19 23 18.5523 23 18V6C23 5.44772 22.5523 5 22 5H2ZM11 9H5V12H11V9ZM13 9H19V12H13V9Z'%3E%3C/path%3E%3C/svg%3E"
-  mutable      = true
+  mutable      = false
   # option {
   #   name  = "1 GB"
   #   value = 1024
@@ -193,6 +195,10 @@ data "coder_parameter" "a240_php_formula" {
     name  = "7.0"
     value = "php70"
   }
+  option {
+    name  = "None"
+    value = "phpNone"
+  }
 }
 
 data "coder_parameter" "a250_composer_formula" {
@@ -215,7 +221,12 @@ data "coder_parameter" "a250_composer_formula" {
     name  = "1.10"
     value = "composer@1.10"
   }
+  option {
+    name  = "None"
+    value = "composerNone"
+  }
 }
+
 
 data "coder_parameter" "a260_postgresql_formula" {
   name         = "a260_postgresql_formula"
@@ -407,6 +418,59 @@ provider "proxmox" {
   }
 }
 
+resource "terraform_data" "coder_workspace_template_version" {
+  input = data.coder_workspace.me.template_version
+}
+
+resource "terraform_data" "ansible_tag_php" {
+  input = data.coder_parameter.a240_php_formula.value
+}
+
+resource "terraform_data" "ansible_tag_composer" {
+  input = data.coder_parameter.a250_composer_formula.value
+}
+
+resource "terraform_data" "coder_agent_init_script" {
+  lifecycle {
+    replace_triggered_by = [
+      coder_agent.main.id,
+      coder_agent.main.token,
+      terraform_data.coder_workspace_template_version.id
+    ]
+  }
+  input = <<-EOT
+export CODER_AGENT_TOKEN=${coder_agent.main.token}
+mkdir -p /opt/coder
+echo '${coder_agent.main.init_script}' | tee /opt/coder/init
+chmod 0755 /opt/coder/init
+
+echo '[Unit]
+Description=Coder Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=${data.coder_workspace.me.owner}
+ExecStart=/opt/coder/init
+Environment=CODER_AGENT_TOKEN=${coder_agent.main.token}
+Restart=always
+RestartSec=10
+TimeoutStopSec=90
+KillMode=process
+
+OOMScoreAdjust=-900
+SyslogIdentifier=coder-agent
+
+[Install]
+WantedBy=multi-user.target' > /etc/systemd/system/coder-agent.service
+
+systemctl daemon-reload
+systemctl enable coder-agent
+systemctl stop coder-agent
+systemctl start coder-agent
+EOT
+}
+
 locals {
   vm_name           = replace("${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}", " ", "_")
   cpu_cores_count   = data.coder_parameter.a110_cpu_cores_count.value
@@ -463,7 +527,7 @@ if [[ -f '/opt/ansibleplaybook.tgz' ]]; then
   mkdir -p /opt/playbook
   tar -zxf /opt/ansibleplaybook.tgz --strip-components=1 -C /opt/playbook/
   if [[ -f /opt/playbook/run.sh ]]; then
-    bash /opt/playbook/run.sh --tags=base-system,nginx,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
+    bash /opt/playbook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
     # rm /opt/ansibleplaybook.tgz
   else
     >&2 echo "/opt/playbook/run.sh does not exists"
@@ -631,6 +695,12 @@ resource "tls_private_key" "rsa_4096" {
 
 resource "null_resource" "lxc_bootstrap_script" {
   count = data.coder_workspace.me.transition == "start" ? 1 : 0
+  lifecycle {
+    replace_triggered_by = [
+      coder_agent.main.token,
+      terraform_data.coder_agent_init_script.input
+    ]
+  }
   provisioner "file" {
     connection {
       type        = "ssh"
@@ -647,7 +717,7 @@ export TERM=xterm
 ${local.system_bootstrap_base_system}
 ${local.app_bootstrap_script_coder_server}
 ${local.app_bootstrap_script_docker_ce}
-${local.system_bootstrap_coder_agent}
+${terraform_data.coder_agent_init_script.input}
 EOT
     destination = "/tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh"
   }
@@ -686,14 +756,13 @@ resource "proxmox_lxc" "lxc" {
   EOT
 
   depends_on = [
-    null_resource.ansible_repository,
-    null_resource.lxc_bootstrap_script,
+    tls_private_key.rsa_4096
   ]
 
   # Preserve the network config.
   # see: https://github.com/Telmate/terraform-provider-proxmox/issues/112
   lifecycle {
-    ignore_changes = [network, rootfs, mountpoint]
+    ignore_changes = [network, rootfs, mountpoint, ostemplate]
   }
 
   hastate      = "started"
@@ -729,23 +798,18 @@ resource "proxmox_lxc" "lxc" {
     ip     = "dhcp"
   }
 
-  provisioner "remote-exec" {
-    connection {
-      type        = "ssh"
-      user        = var.proxmox_ssh_user
-      host        = var.proxmox_ssh_host
-      private_key = file(var.proxmox_ssh_key_path)
-    }
-    inline = [
-      "pct status $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') | grep -v running && pct start $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') || /bin/true",
-      "lxc-wait $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') -s RUNNING",
-
-      # "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /opt/ansible_playbooks/${local.vm_name}/ansibleplaybook.tgz /opt/ansibleplaybook.tgz",
-      # "pct push $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh /bootstrap.sh",
-      
-      # "pct exec $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') /bin/bash /bootstrap.sh"
-    ]
-  }
+  # provisioner "remote-exec" {
+  #   connection {
+  #     type        = "ssh"
+  #     user        = var.proxmox_ssh_user
+  #     host        = var.proxmox_ssh_host
+  #     private_key = file(var.proxmox_ssh_key_path)
+  #   }
+  #   inline = [
+  #     "pct status $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') | grep -v running && pct start $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') || /bin/true",
+  #     "lxc-wait $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') -s RUNNING",
+  #   ]
+  # }
 }
 
 # Start the VM
@@ -753,10 +817,17 @@ resource "null_resource" "start_vm" {
   count      = data.coder_workspace.me.transition == "start" ? 1 : 0
 
   depends_on = [
-    coder_agent.main,
     proxmox_lxc.lxc,
-    null_resource.lxc_bootstrap_script
+    coder_agent.main,
+    null_resource.ansible_repository,
+    null_resource.lxc_bootstrap_script,
   ]
+
+  lifecycle {
+    replace_triggered_by = [
+      terraform_data.coder_agent_init_script.input
+    ]
+  }
 
   provisioner "remote-exec" {
     connection {
@@ -783,7 +854,8 @@ resource "null_resource" "stop_vm" {
   count = data.coder_workspace.me.transition == "stop" ? 1 : 0
 
   depends_on = [
-    proxmox_lxc.lxc
+    proxmox_lxc.lxc,
+    coder_agent.main
   ]
   provisioner "remote-exec" {
     connection {
