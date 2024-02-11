@@ -11,54 +11,74 @@ terraform {
   }
 }
 
-resource "coder_agent" "main" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/home/${lower(data.coder_workspace.me.owner)}"
-  auth = "token"
-  startup_script = <<EOT
-  #!/bin/sh
-  set -e
-  if [ ${data.coder_parameter.a540_should_install_code_server.value} -gt 0 ]; then
-    until stat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml > /dev/null 2> /dev/null; do sleep 1; done
-    VSCODE_PROXY_DOMAIN=$(echo $VSCODE_PROXY_URI | sed 's/^https\{0,1\}:\/\///')
-    cat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml | grep -v 'password\:\|auth\:\|proxy-domain:\|app-name:\|bind-addr:' | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-    echo "auth: none" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-    echo "bind-addr: 127.0.0.1:13337" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-    echo "proxy-domain: '$VSCODE_PROXY_DOMAIN'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
-    echo "app-name: '$CODER_WORKSPACE_NAME'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+variable "proxmox_api_url" {
+  description = "Proxmox API URL (example: https://pve.example.com/api2/json)"
+  sensitive   = false
+}
 
-    mv /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml
+variable "proxmox_api_user" {
+  description = "Proxmox API Username (example: coder@pve)"
+  sensitive   = false
+}
 
-    sudo systemctl restart code-server@${data.coder_workspace.me.owner}
-  fi
-  PROXY_DOMAIN_WWW_DIR=$(echo $VSCODE_PROXY_DOMAIN | sed 's/{{port}}/www/' | awk -F\. '{ for(i=1;i<NF;i++) printf $i"." }' | awk -F\. '{ for(i=NF;i>0;i--) printf $i"/" }')
-  mkdir -p $HOME/www/$PROXY_DOMAIN_WWW_DIR
-  echo "$CODER_WORKSPACE_NAME works!" > $HOME/www/$PROXY_DOMAIN_WWW_DIR/index.html
-  
-  EOT
+variable "proxmox_api_password" {
+  description = "Proxmox API Password"
+  sensitive   = true
+}
 
-  metadata {
-    key          = "cpu"
-    display_name = "CPU Usage"
-    interval     = 5
-    timeout      = 5
-    script       = "coder stat cpu"
+variable "proxmox_api_insecure" {
+  default     = "false"
+  description = "Type \"true\" if you have an self-signed TLS certificate"
+
+  validation {
+    condition = contains([
+      "true",
+      "false"
+    ], var.proxmox_api_insecure)
+    error_message = "Specify true or false."
   }
-  metadata {
-    key          = "memory"
-    display_name = "Memory Usage"
-    interval     = 5
-    timeout      = 5
-    script       = "coder stat mem"
-  }
-  metadata {
-    key          = "home"
-    display_name = "Home Usage"
-    interval     = 600 # every 10 minutes
-    timeout      = 30  # df can take a while on large filesystems
-    script       = "coder stat disk --path /home/${lower(data.coder_workspace.me.owner)}"
-  }
+  sensitive = false
+}
+
+variable "proxmox_ssh_host" {
+  description = "Proxmox ssh host (example: \"pve.example.com\")"
+  default     = "pve.example.com"
+  sensitive   = false
+}
+
+variable "proxmox_ssh_user" {
+  description = "Proxmox ssh username (example: \"root\")"
+  default     = "root"
+  sensitive   = false
+}
+
+variable "proxmox_ssh_key_path" {
+  description = "Proxmox ssh key path (example: \"/home/coder/.ssh/id_rsa\")"
+  default     = "/home/coder/.ssh/id_rsa"
+  sensitive   = false
+}
+
+variable "vm_target_node" {
+  description = "Container target PVE node (example: \"pve\")"
+  default     = "pve"
+  sensitive   = false
+}
+
+variable "vm_target_storage" {
+  description = "Container target storage (example: \"local-lvm\")"
+  default     = "local-lvm"
+  sensitive   = false
+}
+
+variable "vm_target_bridge" {
+  description = "Container bridge interface (example: \"vmbr0\")"
+  default     = "vmbr0"
+  sensitive   = false
+}
+
+resource "tls_private_key" "rsa_4096" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
 }
 
 data "coder_parameter" "a110_cpu_cores_count" {
@@ -69,10 +89,7 @@ data "coder_parameter" "a110_cpu_cores_count" {
   type         = "string"
   icon         = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='64' height='64' fill='rgba(255,255,255,1)'%3E%3Cpath d='M6 18H18V6H6V18ZM14 20H10V22H8V20H5C4.44772 20 4 19.5523 4 19V16H2V14H4V10H2V8H4V5C4 4.44772 4.44772 4 5 4H8V2H10V4H14V2H16V4H19C19.5523 4 20 4.44772 20 5V8H22V10H20V14H22V16H20V19C20 19.5523 19.5523 20 19 20H16V22H14V20ZM8 8H16V16H8V8Z'%3E%3C/path%3E%3C/svg%3E"
   mutable      = false
-  # option {
-  #   name  = "1 vCpu"
-  #   value = 1
-  # }
+  
   option {
     name  = "2 vCpus"
     value = 2
@@ -85,10 +102,7 @@ data "coder_parameter" "a110_cpu_cores_count" {
     name  = "6 vCpus"
     value = 6
   }
-  # option {
-  #   name  = "8 vCpus"
-  #   value = 8
-  # }
+
 }
 
 data "coder_parameter" "a120_memory_size" {
@@ -99,10 +113,6 @@ data "coder_parameter" "a120_memory_size" {
   type         = "string"
   icon         = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='64' height='64' fill='rgba(255,255,255,1)'%3E%3Cpath d='M3 7H21V17H19V15H17V17H15V15H13V17H11V15H9V17H7V15H5V17H3V7ZM2 5C1.44772 5 1 5.44772 1 6V18C1 18.5523 1.44772 19 2 19H22C22.5523 19 23 18.5523 23 18V6C23 5.44772 22.5523 5 22 5H2ZM11 9H5V12H11V9ZM13 9H19V12H13V9Z'%3E%3C/path%3E%3C/svg%3E"
   mutable      = false
-  # option {
-  #   name  = "1 GB"
-  #   value = 1024
-  # }
   option {
     name  = "2 GB"
     value = 2048
@@ -115,10 +125,10 @@ data "coder_parameter" "a120_memory_size" {
     name  = "6 GB"
     value = 6144
   }
-  # option {
-  #   name  = "8 GB"
-  #   value = 8192
-  # }
+  option {
+    name  = "8 GB"
+    value = 8192
+  }
 }
 
 data "coder_parameter" "a130_disk_size" {
@@ -129,10 +139,7 @@ data "coder_parameter" "a130_disk_size" {
   type         = "string"
   icon         = "/icon/database.svg"
   mutable      = false
-  # option {
-  #   name  = "8 GB"
-  #   value = 8
-  # }
+
   option {
     name  = "16 GB"
     value = 16
@@ -148,6 +155,10 @@ data "coder_parameter" "a130_disk_size" {
   # option {
   #   name  = "64 GB"
   #   value = 64
+  # }
+  # option {
+  #   name  = "128 GB"
+  #   value = 128
   # }
 }
 
@@ -284,18 +295,22 @@ data "coder_parameter" "a540_should_install_code_server" {
 
 data "coder_parameter" "a550_should_install_docker_ce" {
   name         = "a550_should_install_docker_ce"
-  display_name = "Install Docker CE"
-  description  = "Should Docker CE be installed during deploy?"
+  display_name = "Install Docker"
+  description  = "Should Docker be installed during deploy?"
   default      = 1
   type         = "number"
   icon         = "/icon/docker.svg"
   mutable      = true
   option {
-    name  = "Yes"
+    name  = "Docker CE + Portainer CE"
+    value = 2
+  }
+  option {
+    name  = "Docker CE"
     value = 1
   }
   option {
-    name  = "No"
+    name  = "None"
     value = 0
   }
 }
@@ -318,8 +333,60 @@ data "coder_parameter" "a560_mailhog_formula" {
   }
 }
 
-
 data "coder_workspace" "me" {
+}
+
+resource "coder_agent" "main" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/home/${lower(data.coder_workspace.me.owner)}"
+  auth = "token"
+  startup_script = <<EOT
+  #!/bin/sh
+  set -e
+  if [ ${data.coder_parameter.a540_should_install_code_server.value} -gt 0 ]; then
+    until stat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml > /dev/null 2> /dev/null; do sleep 1; done
+    VSCODE_PROXY_DOMAIN=$(echo $VSCODE_PROXY_URI | sed 's/^https\{0,1\}:\/\///')
+    cat /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml | grep -v 'password\:\|auth\:\|proxy-domain:\|app-name:\|bind-addr:' | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "auth: none" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "bind-addr: 127.0.0.1:13337" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "proxy-domain: '$VSCODE_PROXY_DOMAIN'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+    echo "app-name: '$CODER_WORKSPACE_NAME'" | tee -a /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp
+
+    mv /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml.tmp /home/${data.coder_workspace.me.owner}/.config/code-server/config.yaml
+
+    sudo systemctl restart code-server@${data.coder_workspace.me.owner}
+  fi
+
+  if [ ! -f $HOME/www/$PROXY_DOMAIN_WWW_DIR/index.php ]; then
+    PROXY_DOMAIN_WWW_DIR=$(echo $VSCODE_PROXY_DOMAIN | sed 's/{{port}}/www/' | awk -F\. '{ for(i=1;i<NF;i++) printf $i"." }' | awk -F\. '{ for(i=NF;i>0;i--) printf $i"/" }')
+    mkdir -p $HOME/www/$PROXY_DOMAIN_WWW_DIR
+    echo "<?php phpinfo();" > $HOME/www/$PROXY_DOMAIN_WWW_DIR/index.php
+  fi
+  
+  EOT
+
+  metadata {
+    key          = "cpu"
+    display_name = "CPU Usage"
+    interval     = 5
+    timeout      = 5
+    script       = "coder stat cpu"
+  }
+  metadata {
+    key          = "memory"
+    display_name = "Memory Usage"
+    interval     = 5
+    timeout      = 5
+    script       = "coder stat mem"
+  }
+  metadata {
+    key          = "home"
+    display_name = "Home Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = "coder stat disk --path /home/${lower(data.coder_workspace.me.owner)}"
+  }
 }
 
 resource "coder_app" "code-server" {
@@ -340,7 +407,7 @@ resource "coder_app" "code-server" {
 }
 
 resource "coder_app" "docker-portainer" {
-  count        = data.coder_parameter.a550_should_install_docker_ce.value
+  count        = data.coder_parameter.a550_should_install_docker_ce.value > 1 ? 1 : 0
   agent_id     = coder_agent.main.id
   slug         = "portainer"
   display_name = "Docker Portainer"
@@ -430,277 +497,86 @@ resource "terraform_data" "ansible_tag_composer" {
   input = data.coder_parameter.a250_composer_formula.value
 }
 
-resource "terraform_data" "coder_agent_init_script" {
+resource "terraform_data" "bootstrap_script_base_system" {
+  input = templatefile(
+    "tftpl/bootstrap_script_base_system.sh", {
+      username = "${lower(data.coder_workspace.me.owner)}",
+      ansible_paybook_tags = "${join(",", local.ansible_playbook_tags)}"
+    }
+  )
+}
+
+resource "terraform_data" "bootstrap_script_app_code_server" {
+  input = data.coder_parameter.a540_should_install_code_server.value < 1 ? "" : templatefile(
+    "tftpl/app/bootstrap_script_app_code_server.sh", {
+      username = "${lower(data.coder_workspace.me.owner)}",
+    }
+  )
+}
+
+resource "terraform_data" "bootstrap_script_app_docker_ce" {
+  input = data.coder_parameter.a550_should_install_docker_ce.value < 1 ? "" :templatefile(
+    "tftpl/app/bootstrap_script_app_docker_ce.sh", {
+      username = "${lower(data.coder_workspace.me.owner)}",
+    }
+  )
+}
+resource "terraform_data" "bootstrap_script_app_portainer_ce" {
+  input = data.coder_parameter.a550_should_install_docker_ce.value < 2 ? "" :templatefile(
+    "tftpl/app/bootstrap_script_app_portainer_ce.sh", {
+      username = "${lower(data.coder_workspace.me.owner)}",
+    }
+  )
+}
+
+resource "terraform_data" "bootstrap_script_coder_agent_init" {
   lifecycle {
     replace_triggered_by = [
-      coder_agent.main.id,
-      coder_agent.main.token,
       terraform_data.coder_workspace_template_version.id
     ]
   }
-  input = <<-EOT
-export CODER_AGENT_TOKEN=${coder_agent.main.token}
-mkdir -p /opt/coder
-echo '${coder_agent.main.init_script}' | tee /opt/coder/init
-chmod 0755 /opt/coder/init
-
-echo '[Unit]
-Description=Coder Agent
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=${data.coder_workspace.me.owner}
-ExecStart=/opt/coder/init
-Environment=CODER_AGENT_TOKEN=${coder_agent.main.token}
-Restart=always
-RestartSec=10
-TimeoutStopSec=90
-KillMode=process
-
-OOMScoreAdjust=-900
-SyslogIdentifier=coder-agent
-
-[Install]
-WantedBy=multi-user.target' > /etc/systemd/system/coder-agent.service
-
-systemctl daemon-reload
-systemctl enable coder-agent
-systemctl stop coder-agent
-systemctl start coder-agent
-EOT
+  input = templatefile(
+    "tftpl/bootstrap_script_coder_agent_init.sh", {
+      username = "${lower(data.coder_workspace.me.owner)}",
+      coder_agent_token = "${coder_agent.main.token}",
+      coder_agent_init_script = "${coder_agent.main.init_script}",
+    }
+  )
 }
 
 locals {
   vm_name           = replace("${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}", " ", "_")
+
   cpu_cores_count   = data.coder_parameter.a110_cpu_cores_count.value
   memory_size       = data.coder_parameter.a120_memory_size.value
   disk_size         = data.coder_parameter.a130_disk_size.value
-  ansible_tag_php   = data.coder_parameter.a240_php_formula.value
-  ansible_tag_composer = data.coder_parameter.a250_composer_formula.value
-  ansible_tag_mysql = data.coder_parameter.a270_mysql_formula.value
-  ansible_tag_postgresql = data.coder_parameter.a260_postgresql_formula.value
-  ansible_tag_mailhog = data.coder_parameter.a560_mailhog_formula.value
-  
-  system_bootstrap_base_system = <<-EOT
-export DEBIAN_FRONTEND=noninteractive
 
-if ! which sudo git curl wget jq htop nload vim pv > /dev/null; then
-  apt update -qq && apt install -yqqq sudo git-core curl wget jq htop nload locales vim pv
-fi
-
-if grep '# en_US.UTF-8 UTF-8' /etc/locale.gen > /dev/null; then
-  dpkg -l | grep 'ii\s\+locales' > /dev/null || apt update -qq && apt install -yqqq locales
-  sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
-  dpkg-reconfigure locales  > /dev/null 2>&1
-  update-locale LANG=en_US.UTF-8 > /dev/null 2>&1
-fi
-
-# Create the user if it is not created
-getent passwd '${lower(data.coder_workspace.me.owner)}' > /dev/null || {
-  adduser \
-    --shell /bin/bash \
-    --gecos 'User for workspace owner' \
-    --disabled-password \
-    --home '/home/${lower(data.coder_workspace.me.owner)}' \
-    '${lower(data.coder_workspace.me.owner)}'
-
-  usermod -aG sudo ${lower(data.coder_workspace.me.owner)}
-
-  echo '${lower(data.coder_workspace.me.owner)} ALL=(ALL) NOPASSWD: ALL' | tee /etc/sudoers.d/${lower(data.coder_workspace.me.owner)}
+  ansible_playbook_tags = [
+    data.coder_parameter.a240_php_formula.value,
+    data.coder_parameter.a250_composer_formula.value,
+    data.coder_parameter.a270_mysql_formula.value,
+    data.coder_parameter.a260_postgresql_formula.value,
+    data.coder_parameter.a560_mailhog_formula.value
+  ]
 }
 
-[[ -d '/home/${lower(data.coder_workspace.me.owner)}' ]] || {
-  mkdir -p '/home/${lower(data.coder_workspace.me.owner)}'
-  chown $(id -u ${lower(data.coder_workspace.me.owner)}):$(id -g ${lower(data.coder_workspace.me.owner)}) '/home/${lower(data.coder_workspace.me.owner)}'
-}
-
-[[ ! -d '/home/linuxbrew' ]] && [[ -d /opt/linuxbrew ]] && {
-  WS_USER=${lower(data.coder_workspace.me.owner)}
-  mv /opt/linuxbrew /home/linuxbrew
-  chown $(id -u $WS_USER):$(id -g $WS_USER) '/home/linuxbrew'
-}
-
-set -x
-if [[ -f '/opt/ansibleplaybook.tgz' ]]; then
-  rm -rf /opt/playbook
-  mkdir -p /opt/playbook
-  tar -zxf /opt/ansibleplaybook.tgz --strip-components=1 -C /opt/playbook/
-  if [[ -f /opt/playbook/run.sh ]]; then
-    bash /opt/playbook/run.sh --tags=base-system,zsh,${local.ansible_tag_php},${local.ansible_tag_composer},${local.ansible_tag_mysql},${local.ansible_tag_postgresql},${local.ansible_tag_mailhog}
-    # rm /opt/ansibleplaybook.tgz
-  else
-    >&2 echo "/opt/playbook/run.sh does not exists"
-    exit 1
-  fi
-fi
-set +x
-EOT
-
-  system_bootstrap_coder_agent = <<-EOT
-export CODER_AGENT_TOKEN=${coder_agent.main.token}
-mkdir -p /opt/coder
-echo '${coder_agent.main.init_script}' | tee /opt/coder/init
-chmod 0755 /opt/coder/init
-
-echo '[Unit]
-Description=Coder Agent
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=${data.coder_workspace.me.owner}
-ExecStart=/opt/coder/init
-Environment=CODER_AGENT_TOKEN=${coder_agent.main.token}
-Restart=always
-RestartSec=10
-TimeoutStopSec=90
-KillMode=process
-
-OOMScoreAdjust=-900
-SyslogIdentifier=coder-agent
-
-[Install]
-WantedBy=multi-user.target' > /etc/systemd/system/coder-agent.service
-
-systemctl daemon-reload
-systemctl enable coder-agent
-systemctl stop coder-agent
-systemctl start coder-agent
-EOT
-
-  app_bootstrap_script_coder_server = (data.coder_parameter.a540_should_install_code_server.value < 1 ? "" : <<-EOT
-# Installing Coder Server if it is not installed
-which code-server > /dev/null || {
-  CODE_SERVER_DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/coder/code-server/releases/latest | jq -r '.assets[].browser_download_url' | grep 'amd64.deb')
-  curl -fL $CODE_SERVER_DOWNLOAD_URL -o /tmp/code_server.deb
-  dpkg -i /tmp/code_server.deb
-  rm /tmp/code_server.deb
-
-  systemctl enable --now code-server@${data.coder_workspace.me.owner}
-}
-EOT
-  )
-
-  app_bootstrap_script_docker_ce = (data.coder_parameter.a550_should_install_docker_ce.value < 1 ? "" : <<-EOT
-# Installing Docker CE with Portainer if it is not installed
-which docker > /dev/null || {
-  # Install Docker CE
-  curl https://get.docker.com | bash
-  usermod -aG docker ${lower(data.coder_workspace.me.owner)}
-
-  # Install Portainer CE
-  PORTAINER_CE_DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/portainer/portainer/releases/latest | jq -r '.assets[].browser_download_url' | grep 'linux-amd64' | grep '.tar.gz')
-  mkdir /tmp/portainer_ce && cd /tmp/portainer_ce
-  curl -fL $PORTAINER_CE_DOWNLOAD_URL -o portainer_ce.tgz
-  tar -zxf portainer_ce.tgz
-  mv portainer /opt/portainer
-  mkdir /var/lib/portainer
-  chown ${lower(data.coder_workspace.me.owner)} /var/lib/portainer
-
-  echo '[Unit]
-  Description=Portainer CE
-  After=docker.service
-  Wants=docker.service
-
-  [Service]
-  User=${data.coder_workspace.me.owner}
-  ExecStart=/opt/portainer/portainer --bind=127.0.0.1:9000 --data=/var/lib/portainer
-  Restart=always
-  RestartSec=10
-  TimeoutStopSec=90
-  KillMode=process
-
-  OOMScoreAdjust=-800
-  SyslogIdentifier=portainer
-
-  [Install]
-  WantedBy=multi-user.target' > /etc/systemd/system/portainer.service
-
-  systemctl enable --now portainer
-}
-EOT
-  )
-}
-
-variable "proxmox_api_url" {
-  description = "Proxmox API URL (example: https://pve.example.com/api2/json)"
-  sensitive   = false
-}
-
-variable "proxmox_api_user" {
-  description = "Proxmox API Username (example: coder@pve)"
-  sensitive   = false
-}
-
-variable "proxmox_api_password" {
-  description = "Proxmox API Password"
-  sensitive   = true
-}
-
-variable "proxmox_api_insecure" {
-  default     = "false"
-  description = "Type \"true\" if you have an self-signed TLS certificate"
-
-  validation {
-    condition = contains([
-      "true",
-      "false"
-    ], var.proxmox_api_insecure)
-    error_message = "Specify true or false."
-  }
-  sensitive = false
-}
-
-variable "proxmox_ssh_host" {
-  description = "Proxmox ssh host (example: \"pve.example.com\")"
-  default     = "pve.example.com"
-  sensitive   = false
-}
-
-variable "proxmox_ssh_user" {
-  description = "Proxmox ssh username (example: \"root\")"
-  default     = "root"
-  sensitive   = false
-}
-
-variable "proxmox_ssh_key_path" {
-  description = "Proxmox ssh key path (example: \"/home/coder/.ssh/id_rsa\")"
-  default     = "/home/coder/.ssh/id_rsa"
-  sensitive   = false
-}
-
-variable "vm_target_node" {
-  description = "Container target PVE node (example: \"pve\")"
-  default     = "pve"
-  sensitive   = false
-}
-
-variable "vm_target_storage" {
-  description = "Container target storage (example: \"local-lvm\")"
-  default     = "local-lvm"
-  sensitive   = false
-}
-
-variable "vm_target_bridge" {
-  description = "Container bridge interface (example: \"vmbr0\")"
-  default     = "vmbr0"
-  sensitive   = false
-}
-
-resource "tls_private_key" "rsa_4096" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
-
-resource "null_resource" "lxc_bootstrap_script" {
+resource "terraform_data" "bootstrap_script" {
   count = data.coder_workspace.me.transition == "start" ? 1 : 0
+
+  depends_on = [
+    terraform_data.bootstrap_script_base_system,
+    terraform_data.bootstrap_script_app_code_server,
+    terraform_data.bootstrap_script_app_docker_ce,
+    terraform_data.bootstrap_script_app_portainer_ce,
+    terraform_data.bootstrap_script_coder_agent_init,
+  ]
+
   lifecycle {
     replace_triggered_by = [
-      coder_agent.main.token,
-      terraform_data.coder_agent_init_script.input
+      terraform_data.bootstrap_script_coder_agent_init.input,
     ]
   }
+
   provisioner "file" {
     connection {
       type        = "ssh"
@@ -708,22 +584,23 @@ resource "null_resource" "lxc_bootstrap_script" {
       host        = var.proxmox_ssh_host
       private_key = file(var.proxmox_ssh_key_path)
     }
-    content = <<EOT
-#!/bin/bash
-set -e
-unset LS_COLORS; 
-export DEBIAN_FRONTEND=noninteractive
-export TERM=xterm
-${local.system_bootstrap_base_system}
-${local.app_bootstrap_script_coder_server}
-${local.app_bootstrap_script_docker_ce}
-${terraform_data.coder_agent_init_script.input}
-EOT
     destination = "/tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh"
+    content     = <<-EOT
+    #!/bin/bash
+    set -e
+    unset LS_COLORS; 
+    export DEBIAN_FRONTEND=noninteractive
+    export TERM=xterm
+    ${terraform_data.bootstrap_script_base_system.input}
+    ${terraform_data.bootstrap_script_app_code_server.input}
+    ${terraform_data.bootstrap_script_app_docker_ce.input}
+    ${terraform_data.bootstrap_script_app_portainer_ce.input}
+    ${terraform_data.bootstrap_script_coder_agent_init.input}
+    EOT
   }
 }
 
-resource "null_resource" "ansible_repository" {
+resource "terraform_data" "ansible_playbook" {
   count = data.coder_workspace.me.transition == "start" ? 1 : 0
 
   provisioner "remote-exec" {
@@ -733,6 +610,7 @@ resource "null_resource" "ansible_repository" {
       host        = var.proxmox_ssh_host
       private_key = file(var.proxmox_ssh_key_path)
     }
+
     inline = [
       "mkdir -p /opt/ansible_playbooks/${local.vm_name}",
       "curl -L -s -o /opt/ansible_playbooks/${local.vm_name}/ansibleplaybook.tgz https://github.com/cloudspacesh/coder-ansible-php-stack/archive/refs/heads/master.tar.gz",
@@ -797,19 +675,6 @@ resource "proxmox_lxc" "lxc" {
     bridge = var.vm_target_bridge
     ip     = "dhcp"
   }
-
-  # provisioner "remote-exec" {
-  #   connection {
-  #     type        = "ssh"
-  #     user        = var.proxmox_ssh_user
-  #     host        = var.proxmox_ssh_host
-  #     private_key = file(var.proxmox_ssh_key_path)
-  #   }
-  #   inline = [
-  #     "pct status $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') | grep -v running && pct start $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') || /bin/true",
-  #     "lxc-wait $(pct list | grep \"\\b${local.vm_name}\\b\" | awk '{print $1}') -s RUNNING",
-  #   ]
-  # }
 }
 
 # Start the VM
@@ -817,15 +682,14 @@ resource "null_resource" "start_vm" {
   count      = data.coder_workspace.me.transition == "start" ? 1 : 0
 
   depends_on = [
+    terraform_data.ansible_playbook,
+    terraform_data.bootstrap_script,
     proxmox_lxc.lxc,
-    coder_agent.main,
-    null_resource.ansible_repository,
-    null_resource.lxc_bootstrap_script,
   ]
 
   lifecycle {
     replace_triggered_by = [
-      terraform_data.coder_agent_init_script.input
+      terraform_data.bootstrap_script_coder_agent_init.input,
     ]
   }
 
@@ -854,9 +718,9 @@ resource "null_resource" "stop_vm" {
   count = data.coder_workspace.me.transition == "stop" ? 1 : 0
 
   depends_on = [
-    proxmox_lxc.lxc,
-    coder_agent.main
+    proxmox_lxc.lxc
   ]
+  
   provisioner "remote-exec" {
     connection {
       type        = "ssh"
