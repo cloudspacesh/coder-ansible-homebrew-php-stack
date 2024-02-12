@@ -358,8 +358,8 @@ resource "coder_agent" "main" {
     sudo systemctl restart code-server@${data.coder_workspace.me.owner}
   fi
 
+  PROXY_DOMAIN_WWW_DIR=$(echo $VSCODE_PROXY_DOMAIN | sed 's/{{port}}/www/' | awk -F\. '{ for(i=1;i<NF;i++) printf $i"." }' | awk -F\. '{ for(i=NF;i>0;i--) printf $i"/" }')
   if [ ! -f $HOME/www/$PROXY_DOMAIN_WWW_DIR/index.php ]; then
-    PROXY_DOMAIN_WWW_DIR=$(echo $VSCODE_PROXY_DOMAIN | sed 's/{{port}}/www/' | awk -F\. '{ for(i=1;i<NF;i++) printf $i"." }' | awk -F\. '{ for(i=NF;i>0;i--) printf $i"/" }')
     mkdir -p $HOME/www/$PROXY_DOMAIN_WWW_DIR
     echo "<?php phpinfo();" > $HOME/www/$PROXY_DOMAIN_WWW_DIR/index.php
   fi
