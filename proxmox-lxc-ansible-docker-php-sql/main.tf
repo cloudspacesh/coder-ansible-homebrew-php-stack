@@ -644,8 +644,7 @@ resource "proxmox_lxc" "lxc" {
   }
 
   hastate      = "started"
-  #ostemplate   = "local:vztmpl/ubuntu-22.04-homebrew-php82-pgsql_22.04-1_amd64.tar.zst"
-  ostemplate   = "local:vztmpl/ubuntu-22.04-customized_22.04-1_amd64.tar.zst"
+  ostemplate   = "ostemplate   = "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
   unprivileged = true
   cores        = parseint(local.cpu_cores_count, 10)
   memory       = parseint(local.memory_size, 10)
