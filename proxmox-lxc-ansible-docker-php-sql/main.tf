@@ -46,6 +46,12 @@ variable "proxmox_ssh_host" {
   sensitive   = false
 }
 
+variable "proxmox_ssh_port" {
+  description = "Proxmox ssh port (example: \"22\")"
+  default     = "22"
+  sensitive   = false
+}
+
 variable "proxmox_ssh_user" {
   description = "Proxmox ssh username (example: \"root\")"
   default     = "root"
@@ -582,6 +588,7 @@ resource "terraform_data" "bootstrap_script" {
       type        = "ssh"
       user        = var.proxmox_ssh_user
       host        = var.proxmox_ssh_host
+      port        = var.proxmox_ssh_port
       private_key = file(var.proxmox_ssh_key_path)
     }
     destination = "/tmp/proxmox_lxc_${local.vm_name}_bootstrap.sh"
@@ -608,6 +615,7 @@ resource "terraform_data" "ansible_playbook" {
       type        = "ssh"
       user        = var.proxmox_ssh_user
       host        = var.proxmox_ssh_host
+      port        = var.proxmox_ssh_port
       private_key = file(var.proxmox_ssh_key_path)
     }
 
@@ -697,6 +705,7 @@ resource "null_resource" "start_vm" {
       type        = "ssh"
       user        = var.proxmox_ssh_user
       host        = var.proxmox_ssh_host
+      port        = var.proxmox_ssh_port
       private_key = file(var.proxmox_ssh_key_path)
     }
     inline = [
@@ -725,6 +734,7 @@ resource "null_resource" "stop_vm" {
       type        = "ssh"
       user        = var.proxmox_ssh_user
       host        = var.proxmox_ssh_host
+      port        = var.proxmox_ssh_port
       private_key = file(var.proxmox_ssh_key_path)
     }
     inline = [
